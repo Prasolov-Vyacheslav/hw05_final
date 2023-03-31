@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Об авторе{% endblock %}
+{% block content %}
+<figure class="text-end text-center">
+  <img src="{% static 'img/IMG_3522.jpg' %}" width="350" height="500" alt="Это Я">
+  <blockquote class="blockquote">
+  <p>
+    Усердно учусь ✍🏻<br>
+    Уже познакомился с Python, SQL, Django<br>
+    Дальше - больше (╹ڡ╹ )
+  </p>
+</blockquote>
+<figcaption class="blockquote-footer">
+  Вячеслав, <cite title="Source Title">начинающий разработчик </cite>
+</figcaption>
+</figure>
+{% endblock %}
