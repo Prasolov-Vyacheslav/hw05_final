@@ -33,32 +33,32 @@ def profile(request, username):
     posts = author.posts.select_related('group').all()
     posts_count_author = posts.count()
     page_obj = get_page_context(request, posts)
-    if request.user.is_authenticated:
+    follower = author.follower.count()
+    if request.user.is_authenticated and request.user != author:
         user = request.user
         following = Follow.objects.filter(user=user, author=author).exists()
+        following = author.following.count()
     else:
         following = False
+        following = author.following.count()
     context = {
         'author': author,
         'posts_count_author': posts_count_author,
         'page_obj': page_obj,
         'following': following,
+        'follower': follower,
     }
     return render(request, 'posts/profile.html', context)
 
 
 def post_detail(request, post_id):
     post = get_object_or_404(Post, pk=post_id)
-    comments = Comment.objects.filter(post=post_id)
     comment_form = CommentForm(request.POST or None)
-
     context = {
         "post": post,
         "form": comment_form,
-        "comments": comments,
+        "comments": Comment.objects.filter(post=post_id),
     }
-    if post.author == request.user:
-        context["is_author"] = True
 
     return render(request, 'posts/post_detail.html', context)
 
@@ -117,12 +117,14 @@ def add_comment(request, post_id):
 @login_required
 def follow_index(request):
     user = request.user
-    authors = user.follower.values_list('author', flat=True)
-    posts_list = Post.objects.filter(author__id__in=authors)
+    posts_list = Post.objects.filter(author__id__in=user.follower.values_list(
+        'author',
+        flat=True
+    ))
     page_obj = get_page_context(request, posts_list)
     context = {'page_obj': page_obj,
                'follow': True, }
-    return render(request, 'posts/includes/follow.html', context)
+    return render(request, 'posts/follow.html', context)
 
 
 @login_required

@@ -152,6 +152,7 @@ class CommentFormTests(TestCase):
             author=self.user,
             text=text,
         )
+        comment_count = Comment.objects.count()
         response = self.authorized_client.post(
             reverse("posts:add_comment", args=(self.post.id,)),
             data=text,
@@ -163,13 +164,16 @@ class CommentFormTests(TestCase):
                 "posts:post_detail", args=(self.post.id,)
             )
         )
-        created_comment = Comment.objects.first()
 
+        created_comment = Comment.objects.first()
+        self.assertEqual(created_comment.post.id, self.post.id)
         self.assertEqual(created_comment.text, text["text"])
         self.assertEqual(created_comment.author, self.user)
+        self.assertEqual(Comment.objects.count(), (comment_count + 1))
 
     def test_anon_user_cant_comments(self):
         """Проверка прав на создание комментария"""
+        comment_count = Comment.objects.count()
         text = {
             "text": "Мысли вяжутся в стишок, море лижет сушу."
             "Дети какают в горшок, а большие - в душу."
@@ -181,7 +185,6 @@ class CommentFormTests(TestCase):
             follow=True,
         )
 
-        comment = Comment.objects.first()
         expected_url = (
             reverse("users:login")
             + "?next="
@@ -189,4 +192,4 @@ class CommentFormTests(TestCase):
         )
 
         self.assertRedirects(response, expected_url)
-        self.assertIsNone(comment)
+        self.assertEqual(Comment.objects.count(), (comment_count))

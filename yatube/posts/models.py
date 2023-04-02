@@ -91,19 +91,21 @@ class Comment(models.Model):
 
 
 class Follow(models.Model):
-    user = models.ForeignKey(User,
-                             on_delete=models.CASCADE,
-                             related_name='follower',
-                             help_text='Пользователь, который подписывается',
-                             verbose_name='Подписчик',
-                             )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='follower',
+        help_text='Пользователь, который подписывается',
+        verbose_name='Подписчик',
+    )
 
-    author = models.ForeignKey(User,
-                               on_delete=models.CASCADE,
-                               related_name='following',
-                               help_text='На кого подписываются',
-                               verbose_name='Автор',
-                               )
+    author = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='following',
+        help_text='На кого подписываются',
+        verbose_name='Автор',
+    )
 
     class Meta:
         constraints = [
@@ -113,3 +115,17 @@ class Follow(models.Model):
 
     def __str__(self):
         return f'Пользователь {self.user} подписался на {self.author}'
+
+    def test_cache_index_page(self):
+        """Тест работы кэша"""
+        post_cashe = Post.objects.create(author=self.user, text="Тест кэша")
+        url = reverse("posts:index")
+
+        response = self.authorized_client.get(url)
+        post_cashe.delete()
+        response_old = self.authorized_client.get(url)
+        self.assertNotEqual(response.content, response_old.content)
+
+        cache.clear()
+        response_new = self.authorized_client.get(url)
+        self.assertEqual(response_old.content, response_new.content)

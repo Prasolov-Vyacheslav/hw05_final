@@ -3,7 +3,7 @@ from http import HTTPStatus
 from django.test import Client, TestCase
 from django.urls import reverse
 
-from posts.models import Group, Post, User
+from posts.models import Comment, Group, Post, User
 
 
 class PostUrlTests(TestCase):
@@ -24,12 +24,20 @@ class PostUrlTests(TestCase):
             text="Тестовый пост",
             group=cls.group,
         )
+        cls.comment = Comment.objects.create(
+            post=cls.post,
+            author=cls.user,
+            text="Мысли вяжутся в стишок, море лижет сушу."
+            "Дети какают в горшок, а большие - в душу."
+        )
 
     def setUp(self):
         self.authorized_client = Client()
         self.authorized_client.force_login(self.author)
         self.authorized_client_not_author = Client()
         self.authorized_client_not_author.force_login(self.user)
+        self.authorized_client.get(reverse("posts:profile_follow",
+                                           args=(self.user.username,)))
         self.pages_names = (
             ("posts:index", None, "/"),
             ("posts:group_list", (self.group.slug,),
@@ -40,6 +48,13 @@ class PostUrlTests(TestCase):
             ("posts:post_create", None, "/create/"),
             ("posts:post_edit", (self.post.id,),
              f"/posts/{self.post.id}/edit/"),
+            ("posts:add_comment",
+             (self.post.id,),
+             f"/posts/{self.post.id}/comment/"),
+            ("posts:follow_index", None, "/follow/"),
+            ("posts:profile_follow",
+             (self.user.username,),
+             f"/profile/{self.user.username}/follow/"),
         )
 
     def test_unexisting_page(self):
@@ -49,16 +64,34 @@ class PostUrlTests(TestCase):
 
     def test_all_urls_for_author(self):
         """Все urls доступны автору"""
+        author_list = ["posts:add_comment",
+                       "posts:profile_follow",
+                       "posts:profile_unfollow"]
         for name, args, _ in self.pages_names:
-            with self.subTest(name=name):
-                response = self.authorized_client.get(reverse(name, args=args))
-                self.assertEqual(response.status_code, HTTPStatus.OK)
+            with self.subTest(name=name, args=args):
+                if name in author_list:
+                    reverse_name = reverse(name, args=args)
+                    response = self.client.get(
+                        reverse_name, follow=True)
+                    expected_url = (reverse("users:login")
+                                    + f"?next={reverse_name}")
+                    self.assertRedirects(response, expected_url)
+                else:
+                    response = self.authorized_client.get(reverse(name,
+                                                                  args=args))
+                    self.assertEqual(response.status_code, HTTPStatus.OK)
 
     def test_all_urls_for_anonim(self):
-        """Все urls доступны анониму, кроме edit и create """
-        create_edit_list = ["posts:post_edit", "posts:post_create"]
-        for name, args, url in self.pages_names:
-            with self.subTest(name=name):
+        """Все urls доступны анониму, кроме edit, follow_index, profile_follow,
+        profile_unfollow, add comment и create """
+        create_edit_list = ["posts:post_edit",
+                            "posts:post_create",
+                            "posts:add_comment",
+                            "posts:follow_index",
+                            "posts:profile_follow",
+                            "posts:profile_unfollow"]
+        for name, args, _ in self.pages_names:
+            with self.subTest(name=name, args=args):
                 if name in create_edit_list:
                     reverse_name = reverse(name, args=args)
                     response = self.client.get(
@@ -74,13 +107,12 @@ class PostUrlTests(TestCase):
         """Все urls доступны не автору,
         но авторизованному пользователю, кроме edit"""
         for name, args, _ in self.pages_names:
-            with self.subTest(name=name):
+            with self.subTest(name=name, args=args):
                 response = self.authorized_client_not_author.get(
                     reverse(name, args=args), follow=True
                 )
                 if name == "posts:post_edit":
-                    expected_url = (reverse('posts:post_detail',
-                                            args=args))
+                    expected_url = (reverse('posts:post_detail', args=args))
                     self.assertRedirects(response, expected_url)
                 else:
                     self.assertEqual(response.status_code, HTTPStatus.OK)
@@ -94,6 +126,7 @@ class PostUrlTests(TestCase):
             ("posts:post_detail", (self.post.id,), "posts/post_detail.html"),
             ("posts:post_create", None, "posts/create_post.html"),
             ("posts:post_edit", (self.post.id,), "posts/create_post.html"),
+            ("posts:follow_index", None, "posts/follow.html"),
         )
 
         for name, args, template in templates_url_names:

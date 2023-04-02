@@ -76,6 +76,7 @@ class PostPagesTests(TestCase):
         self.assertEqual(post.text, self.post.text)
         self.assertEqual(post.group, self.post.group)
         self.assertEqual(post.pub_date, self.post.pub_date)
+        self.assertEqual(post.image, self.post.image)
 
     def test_index_correct_context(self):
         """Шаблон index сформирован с правильным контекстом."""
@@ -116,6 +117,7 @@ class PostPagesTests(TestCase):
         form_fields = {
             "text": forms.fields.CharField,
             "group": forms.fields.ChoiceField,
+            "image": forms.fields.ImageField,
         }
         post_urls = {
             "post_create": reverse("posts:post_create"),
@@ -179,15 +181,13 @@ class PostPagesTests(TestCase):
         """Тест работы кэша"""
         post_cashe = Post.objects.create(author=self.user, text="Тест кэша")
         url = reverse("posts:index")
-
         response = self.authorized_client.get(url)
         post_cashe.delete()
         response_old = self.authorized_client.get(url)
-        self.assertNotEqual(response.content, response_old.content)
-
+        self.assertEqual(response.content, response_old.content)
         cache.clear()
         response_new = self.authorized_client.get(url)
-        self.assertEqual(response_old.content, response_new.content)
+        self.assertNotEqual(response_old.content, response_new.content)
 
     def test_custom_template_error(self):
         response = self.client.get('/404/')
@@ -205,7 +205,8 @@ class FollowTests(TestCase):
 
     def test_authorized_user_subscribe_unsubscribe(self):
         """Пользователь может подписываться"""
-
+        follower = self.user.follower.count()
+        following = self.user.following.count()
         self.assertFalse(self.user.follower.exists())
 
         self.authorized_client.get(
@@ -215,28 +216,28 @@ class FollowTests(TestCase):
             )
         )
         self.assertEqual(self.user.follower.first().author, self.author)
+        self.assertEqual(follower + 1, self.user.follower.count())
+        self.assertEqual(following + 1, self.author.following.count())
 
     def test_forbidden_user_subscribe_to_himself(self):
         """Пользователь не может подписаться на себя"""
         author_client = Client()
         author_client.force_login(self.author)
-
-        response = author_client.get(
+        follower = self.user.follower.count()
+        following = self.user.following.count()
+        author_client.get(
             reverse(
                 "posts:profile_follow",
                 args=(self.author.username,)
             )
         )
-        expected_redir_url = reverse(
-            "posts:profile", args=(self.author.username,)
-        )
-
-        self.assertRedirects(response, expected_redir_url)
+        self.assertEqual(follower, self.author.follower.count())
+        self.assertEqual(following, self.author.following.count())
 
     def test_authorized_user_unsubscribe(self):
         """Пользователь может отписаться"""
         Follow.objects.create(user=self.user, author=self.author)
-
+        follower = self.user.follower.count()
         self.authorized_client.get(
             reverse(
                 "posts:profile_unfollow",
@@ -244,32 +245,33 @@ class FollowTests(TestCase):
             )
         )
         self.assertFalse(self.user.follower.exists())
+        self.assertEqual(follower - 1, self.user.follower.count())
 
-    def test_new_post_shown_in_feed_subscriber(self):
-        """Пост появляется в ленте подписанного пользователя"""
+    def test_new_post_shown_in_feed(self):
+        """Посты появляются в ленте только у подписчиков"""
+        response = self.authorized_client.get(reverse("posts:follow_index"))
+        page_obj_before = response.context.get("page_obj")
         Follow.objects.create(user=self.user, author=self.author)
-
         post = Post.objects.create(
             text="Тестовый пост",
             author=self.author,
         )
-
         response = self.authorized_client.get(reverse("posts:follow_index"))
+        page_obj_after = response.context.get("page_obj")
         self.assertIn(post, response.context.get("page_obj").object_list)
-
-    def test_new_post_doesnt_show_in_feed_unsubscribed(self):
-        """У не подписанного пользователя пост не появляется в ленте"""
         unsub = User.objects.create_user(username="unsub")
         unsub_client = Client()
         unsub_client.force_login(unsub)
-
-        post = Post.objects.create(
-            text="Тестовый пост",
+        post2 = Post.objects.create(
+            text="Еще один тестовый пост",
             author=self.author,
         )
 
         response = unsub_client.get(reverse("posts:follow_index"))
-        self.assertNotIn(post, response.context.get("page_obj").object_list)
+        self.assertNotIn(post2, response.context.get("page_obj").object_list)
+
+        self.assertEqual(Post.objects.count(), Post.objects.count())
+        self.assertNotEqual(page_obj_before, page_obj_after)
 
 
 class PaginatorViewsTest(TestCase):
@@ -302,7 +304,7 @@ class PaginatorViewsTest(TestCase):
         self.pages_names = (
             ("posts:index", None,),
             ("posts:group_list", (self.group.slug,),),
-            ("posts:profile", (self.author.username,),)
+            ("posts:profile", (self.author.username,),),
         )
 
     def test_two_page_contains_records(self):
