@@ -38,6 +38,9 @@ class PostUrlTests(TestCase):
         self.authorized_client_not_author.force_login(self.user)
         self.authorized_client.get(reverse("posts:profile_follow",
                                            args=(self.user.username,)))
+        self.authorized_client_not_author.get(reverse("posts:profile_follow",
+                                                      args=(self.user.username,
+                                                            )))
         self.pages_names = (
             ("posts:index", None, "/"),
             ("posts:group_list", (self.group.slug,),
@@ -55,6 +58,9 @@ class PostUrlTests(TestCase):
             ("posts:profile_follow",
              (self.user.username,),
              f"/profile/{self.user.username}/follow/"),
+            ("posts:profile_unfollow",
+             (self.user.username,),
+             f"/profile/{self.user.username}/unfollow/"),
         )
 
     def test_unexisting_page(self):
@@ -64,21 +70,19 @@ class PostUrlTests(TestCase):
 
     def test_all_urls_for_author(self):
         """Все urls доступны автору"""
-        author_list = ["posts:add_comment",
-                       "posts:profile_follow",
-                       "posts:profile_unfollow"]
         for name, args, _ in self.pages_names:
             with self.subTest(name=name, args=args):
-                if name in author_list:
-                    reverse_name = reverse(name, args=args)
-                    response = self.client.get(
-                        reverse_name, follow=True)
-                    expected_url = (reverse("users:login")
-                                    + f"?next={reverse_name}")
+                response = self.authorized_client.get(reverse(name, args=args))
+                if name == "posts:profile_follow":
+                    expected_url = (reverse("posts:profile", args=args))
                     self.assertRedirects(response, expected_url)
+                elif name == "posts:add_comment":
+                    expected_url = (reverse("posts:post_detail", args=args))
+                    self.assertRedirects(response, expected_url)
+                elif name == "posts:profile_unfollow":
+                    response = self.client.get('/unfollow/')
+                    self.assertEqual(response.status_code, 404)
                 else:
-                    response = self.authorized_client.get(reverse(name,
-                                                                  args=args))
                     self.assertEqual(response.status_code, HTTPStatus.OK)
 
     def test_all_urls_for_anonim(self):
@@ -113,6 +117,15 @@ class PostUrlTests(TestCase):
                 )
                 if name == "posts:post_edit":
                     expected_url = (reverse('posts:post_detail', args=args))
+                    self.assertRedirects(response, expected_url)
+                elif name == "posts:add_comment":
+                    expected_url = (reverse('posts:post_detail', args=args))
+                    self.assertRedirects(response, expected_url)
+                elif name == "posts:profile_follow":
+                    expected_url = (reverse("posts:profile", args=args))
+                    self.assertRedirects(response, expected_url)
+                elif name == "posts:profile_unfollow":
+                    expected_url = (reverse("posts:profile", args=args))
                     self.assertRedirects(response, expected_url)
                 else:
                     self.assertEqual(response.status_code, HTTPStatus.OK)

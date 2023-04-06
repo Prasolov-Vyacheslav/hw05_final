@@ -1,7 +1,7 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, redirect, render
 
-from .models import Comment, Follow, Group, Post, User
+from .models import Follow, Group, Post, User
 from .forms import CommentForm, PostForm
 from .utils import get_page_context
 
@@ -33,31 +33,27 @@ def profile(request, username):
     posts = author.posts.select_related('group').all()
     posts_count_author = posts.count()
     page_obj = get_page_context(request, posts)
-    follower = author.follower.count()
-    if request.user.is_authenticated and request.user != author:
-        user = request.user
+    user = request.user
+    following = False
+    follower = user.is_authenticated and user != author
+    if follower:
         following = Follow.objects.filter(user=user, author=author).exists()
-        following = author.following.count()
-    else:
-        following = False
-        following = author.following.count()
     context = {
         'author': author,
         'posts_count_author': posts_count_author,
         'page_obj': page_obj,
         'following': following,
-        'follower': follower,
     }
     return render(request, 'posts/profile.html', context)
 
 
 def post_detail(request, post_id):
-    post = get_object_or_404(Post, pk=post_id)
+    post = Post.objects.select_related('author').get(pk=post_id)
     comment_form = CommentForm(request.POST or None)
     context = {
         "post": post,
         "form": comment_form,
-        "comments": Comment.objects.filter(post=post_id),
+        "comments": post.comments.prefetch_related('author').all(),
     }
 
     return render(request, 'posts/post_detail.html', context)
@@ -116,11 +112,7 @@ def add_comment(request, post_id):
 
 @login_required
 def follow_index(request):
-    user = request.user
-    posts_list = Post.objects.filter(author__id__in=user.follower.values_list(
-        'author',
-        flat=True
-    ))
+    posts_list = Post.objects.filter(author__following__user=request.user)
     page_obj = get_page_context(request, posts_list)
     context = {'page_obj': page_obj,
                'follow': True, }
@@ -138,6 +130,8 @@ def profile_follow(request, username):
 
 @login_required
 def profile_unfollow(request, username):
-    user = request.user
-    get_object_or_404(Follow, user=user, author__username=username).delete()
+    unfollow_from_author = get_object_or_404(User, username=username)
+    Follow.objects.filter(user=request.user).filter(
+        author=unfollow_from_author
+    ).delete()
     return redirect('posts:profile', username)

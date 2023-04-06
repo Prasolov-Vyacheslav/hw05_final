@@ -199,15 +199,17 @@ class FollowTests(TestCase):
     def setUp(self):
         self.author = User.objects.create_user(username="author")
         self.user = User.objects.create_user(username="user")
-
         self.authorized_client = Client()
         self.authorized_client.force_login(self.user)
+        self.post = Post.objects.create(
+            text="Тестовый пост",
+            author=self.author,
+        )
 
     def test_authorized_user_subscribe_unsubscribe(self):
         """Пользователь может подписываться"""
-        follower = self.user.follower.count()
+
         following = self.user.following.count()
-        self.assertFalse(self.user.follower.exists())
 
         self.authorized_client.get(
             reverse(
@@ -215,24 +217,22 @@ class FollowTests(TestCase):
                 args=(self.author.username,)
             )
         )
-        self.assertEqual(self.user.follower.first().author, self.author)
-        self.assertEqual(follower + 1, self.user.follower.count())
         self.assertEqual(following + 1, self.author.following.count())
+        self.assertTrue(Follow.objects.filter(
+            user=self.user, author=self.author).exists())
 
     def test_forbidden_user_subscribe_to_himself(self):
         """Пользователь не может подписаться на себя"""
         author_client = Client()
         author_client.force_login(self.author)
-        follower = self.user.follower.count()
-        following = self.user.following.count()
+        self.assertEqual(self.author.follower.count(), 0)
         author_client.get(
             reverse(
                 "posts:profile_follow",
                 args=(self.author.username,)
             )
         )
-        self.assertEqual(follower, self.author.follower.count())
-        self.assertEqual(following, self.author.following.count())
+        self.assertEqual(self.author.follower.count(), 0)
 
     def test_authorized_user_unsubscribe(self):
         """Пользователь может отписаться"""
@@ -244,34 +244,36 @@ class FollowTests(TestCase):
                 args=(self.author.username,)
             )
         )
-        self.assertFalse(self.user.follower.exists())
         self.assertEqual(follower - 1, self.user.follower.count())
+
+    def test_authorized_user_subscribe_unsubscribe(self):
+        """Пользователь может подписываться только один раз"""
+
+        following = self.user.following.count()
+
+        self.authorized_client.get(
+            reverse(
+                "posts:profile_follow",
+                args=(self.author.username,)
+            )
+        )
+        self.assertEqual(following + 1, self.author.following.count())
+        self.authorized_client.get(
+            reverse(
+                "posts:profile_follow",
+                args=(self.author.username,)
+            )
+        )
+        self.assertEqual(following + 1, self.author.following.count())
 
     def test_new_post_shown_in_feed(self):
         """Посты появляются в ленте только у подписчиков"""
         response = self.authorized_client.get(reverse("posts:follow_index"))
-        page_obj_before = response.context.get("page_obj")
+        self.assertEqual(len(response.context["page_obj"]), 0)
         Follow.objects.create(user=self.user, author=self.author)
-        post = Post.objects.create(
-            text="Тестовый пост",
-            author=self.author,
-        )
+
         response = self.authorized_client.get(reverse("posts:follow_index"))
-        page_obj_after = response.context.get("page_obj")
-        self.assertIn(post, response.context.get("page_obj").object_list)
-        unsub = User.objects.create_user(username="unsub")
-        unsub_client = Client()
-        unsub_client.force_login(unsub)
-        post2 = Post.objects.create(
-            text="Еще один тестовый пост",
-            author=self.author,
-        )
-
-        response = unsub_client.get(reverse("posts:follow_index"))
-        self.assertNotIn(post2, response.context.get("page_obj").object_list)
-
-        self.assertEqual(Post.objects.count(), Post.objects.count())
-        self.assertNotEqual(page_obj_before, page_obj_after)
+        self.assertNotEqual(len(response.context["page_obj"]), 0)
 
 
 class PaginatorViewsTest(TestCase):
@@ -280,12 +282,19 @@ class PaginatorViewsTest(TestCase):
         super().setUpClass()
 
         cls.author = User.objects.create_user(username="author")
-
         cls.group = Group.objects.create(
             title="Тестовая группа",
             slug="test-slug",
             description="Тестовое описание"
         )
+        cls.user_folower_client = User.objects.create_user(username='follower')
+        cls.folower_client = Client()
+        cls.folower_client.force_login(cls.user_folower_client)
+
+        cls.user_not_follower_client = User.objects.create_user(
+            username='not_follower')
+        cls.not_follower_client = Client()
+        cls.not_follower_client.force_login(cls.user_not_follower_client)
 
         cls.object_size = 13
         post_objs = []
@@ -324,3 +333,27 @@ class PaginatorViewsTest(TestCase):
                         )
                         self.assertEqual(len(response.context['page_obj']),
                                          posts_num)
+
+    def test_follow_index_and_paginator(self):
+        """ Тест posts:follow_index и paginator"""
+        self.object_size = 13
+        self.followers = []
+        for folower in range(self.object_size):
+            user = User.objects.create_user(username=f"user_{folower}")
+            self.followers.append(user)
+            Follow.objects.create(user=self.user_folower_client, author=user)
+            Post.objects.create(
+                author=user,
+                text="Тестовый пост",
+                group=self.group,
+            )
+        reverse_name = reverse('posts:follow_index')
+        response = self.folower_client.get(reverse('posts:follow_index'))
+        self.assertEqual(len(response.context['page_obj']),
+                         settings.PAGE_COUNT)
+        response = self.folower_client.get(reverse_name + '?page=2')
+        self.assertEqual(len(response.context['page_obj']),
+                         settings.PAGE_COUNT_SEC_PAGE)
+        response = self.not_follower_client.get(reverse('posts:follow_index'))
+        posts_list = response.context['page_obj']
+        self.assertEqual(len(posts_list), 0)

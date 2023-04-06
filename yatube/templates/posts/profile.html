@@ -8,8 +8,8 @@
   <div class="container py-5">        
       <h1>Все посты пользователя {{ author }} </h1>
       <h3>Всего постов: {{ posts_count_author }} </h3>
-      <h3>Подписки: {{ follower }} </h3> 
-      <h3>Подписчики: {{ following }} </h3> 
+      <h3>Подписки: {{ user.follower.count }} </h3> 
+      <h3>Подписчики: {{ author.following.count }} </h3> 
       <div class="mb-5">
 
       {% if request.user.is_authenticated and user != author %}

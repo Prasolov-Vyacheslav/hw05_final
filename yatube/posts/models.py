@@ -1,7 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
 from django.db import models
-from django.urls import reverse
 
 User = get_user_model()
 
@@ -117,17 +115,3 @@ class Follow(models.Model):
 
     def __str__(self):
         return f'Пользователь {self.user} подписался на {self.author}'
-
-    def test_cache_index_page(self):
-        """Тест работы кэша"""
-        post_cashe = Post.objects.create(author=self.user, text="Тест кэша")
-        url = reverse("posts:index")
-
-        response = self.authorized_client.get(url)
-        post_cashe.delete()
-        response_old = self.authorized_client.get(url)
-        self.assertNotEqual(response.content, response_old.content)
-
-        cache.clear()
-        response_new = self.authorized_client.get(url)
-        self.assertEqual(response_old.content, response_new.content)
