@@ -33,11 +33,10 @@ def profile(request, username):
     posts = author.posts.select_related('group').all()
     posts_count_author = posts.count()
     page_obj = get_page_context(request, posts)
-    user = request.user
-    following = False
-    follower = user.is_authenticated and user != author
-    if follower:
-        following = Follow.objects.filter(user=user, author=author).exists()
+    following = (request.user.is_authenticated
+                 and request.user != author
+                 and Follow.objects.
+                 filter(user=request.user, author=author).exists())
     context = {
         'author': author,
         'posts_count_author': posts_count_author,
@@ -48,12 +47,16 @@ def profile(request, username):
 
 
 def post_detail(request, post_id):
-    post = Post.objects.select_related('author').get(pk=post_id)
+    post = get_object_or_404(
+        Post.objects.select_related('author').
+        prefetch_related('comments__author'),
+        pk=post_id
+    )
     comment_form = CommentForm(request.POST or None)
     context = {
-        "post": post,
-        "form": comment_form,
-        "comments": post.comments.prefetch_related('author').all(),
+        'post': post,
+        'form': comment_form,
+        'comments': post.comments.all(),
     }
 
     return render(request, 'posts/post_detail.html', context)
@@ -71,9 +74,9 @@ def post_create(request):
         post = form.save(False)
         post.author = user
         post.save()
-        return redirect("posts:profile", user.username)
+        return redirect('posts:profile', user.username)
 
-    return render(request, "posts/create_post.html", {"form": form})
+    return render(request, 'posts/create_post.html', {'form': form})
 
 
 @login_required(login_url='/auth/login/')
@@ -112,7 +115,9 @@ def add_comment(request, post_id):
 
 @login_required
 def follow_index(request):
-    posts_list = Post.objects.filter(author__following__user=request.user)
+    posts_list = (Post.objects.select_related('author').
+                  prefetch_related('author__following').
+                  filter(author__following__user=request.user))
     page_obj = get_page_context(request, posts_list)
     context = {'page_obj': page_obj,
                'follow': True, }
