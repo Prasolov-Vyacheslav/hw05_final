@@ -110,18 +110,22 @@ class PostUrlTests(TestCase):
     def test_all_urls_for_not_author(self):
         """Все urls доступны не автору,
         но авторизованному пользователю, кроме edit"""
+        edit_comment_list = ["posts:post_edit",
+                             "posts:add_comment"]
+
+        follow_unfollow_list = ["posts:profile_follow",
+                                "posts:profile_unfollow"]
+
         for name, args, _ in self.pages_names:
             with self.subTest(name=name, args=args):
                 response = self.authorized_client_not_author.get(
                     reverse(name, args=args), follow=True
                 )
-                if name == "posts:post_edit" or name == "posts:add_comment":
+                if name in edit_comment_list:
                     expected_url = (reverse("posts:post_detail", args=args))
                     self.assertRedirects(response, expected_url)
 
-                elif (name == "posts:profile_follow"
-                      or name == "posts:profile_unfollow"):
-
+                elif name in follow_unfollow_list:
                     expected_url = (reverse("posts:profile", args=args))
                     self.assertRedirects(response, expected_url)
 

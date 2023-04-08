@@ -135,8 +135,8 @@ class PostPagesTests(TestCase):
 
     def test_new_post_on_group_page(self):
         """Проверка наличия нового поста на странице группы"""
-        group_author = Group.objects.create(title='test-title1',
-                                            slug='slug_group_author')
+        group_author = Group.objects.create(title="test-title1",
+                                            slug="slug_group_author")
         response = (self.authorized_client.get(
             reverse("posts:group_list", args=(group_author.slug,))))
         self.assertEqual(len(response.context["page_obj"]), 0)
@@ -218,8 +218,9 @@ class FollowTests(TestCase):
         self.assertEqual(following + 1, self.author.following.count())
         self.assertTrue(Follow.objects.filter(
             user=self.user, author=self.author).exists())
-        self.assertEqual(Follow.author, self.author)
-        self.assertEqual(Follow.user, self.user)
+        subscription = Follow.objects.post(user=self.user, author=self.author)
+        self.assertEqual(subscription.author, self.author)
+        self.assertEqual(subscription.user, self.user)
 
     def test_forbidden_user_subscribe_to_himself(self):
         """Пользователь не может подписаться на себя"""
@@ -291,11 +292,7 @@ class PaginatorViewsTest(TestCase):
         cls.folower_client = Client()
         cls.folower_client.force_login(cls.user_folower_client)
 
-        cls.user_not_follower_client = User.objects.create_user(
-            username="not_follower")
-        cls.not_follower_client = Client()
-        cls.not_follower_client.force_login(cls.user_not_follower_client)
-
+        Follow.objects.create(user=cls.user_folower_client, author=cls.author)
         cls.object_size = 13
         post_objs = []
         for object in range(cls.object_size):
@@ -326,36 +323,11 @@ class PaginatorViewsTest(TestCase):
             ("?page=2", settings.PAGE_COUNT_SEC_PAGE)
         )
         for name, args in self.pages_names:
-            if name == "posts:follow_index":
-                self.followers = []
-                for folower in range(self.object_size):
-                    user = User.objects.create_user(username=f"user_{folower}")
-                    self.followers.append(user)
-                    Follow.objects.create(user=self.user_folower_client,
-                                          author=user)
-                    Post.objects.create(
-                        author=user,
-                        text="Тестовый пост",
-                        group=self.group,
-                    )
-                reverse_name = reverse("posts:follow_index")
-                response = self.folower_client.get(
-                    reverse("posts:follow_index"))
-                self.assertEqual(len(response.context["page_obj"]),
-                                 settings.PAGE_COUNT)
-                response = self.folower_client.get(reverse_name + "?page=2")
-                self.assertEqual(len(response.context["page_obj"]),
-                                 settings.PAGE_COUNT_SEC_PAGE)
-                response = self.not_follower_client.get(
-                    reverse("posts:follow_index"))
-                posts_list = response.context["page_obj"]
-                self.assertEqual(len(posts_list), 0)
-            else:
-                with self.subTest(name=name):
-                    for page, posts_num in posts_per_page:
-                        with self.subTest(page=page):
-                            response = self.authorized_client.get(
-                                reverse(name, args=args) + page
-                            )
-                            self.assertEqual(len(response.context["page_obj"]),
-                                             posts_num)
+            with self.subTest(name=name):
+                for page, posts_num in posts_per_page:
+                    with self.subTest(page=page):
+                        response = self.folower_client.get(
+                            reverse(name, args=args) + page
+                        )
+                        self.assertEqual(len(response.context["page_obj"]),
+                                         posts_num)

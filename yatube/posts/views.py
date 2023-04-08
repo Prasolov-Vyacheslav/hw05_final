@@ -35,8 +35,8 @@ def profile(request, username):
     page_obj = get_page_context(request, posts)
     following = (request.user.is_authenticated
                  and request.user != author
-                 and Follow.objects.
-                 filter(user=request.user, author=author).exists())
+                 and author.follower.
+                 filter(user=request.user).exists())
     context = {
         'author': author,
         'posts_count_author': posts_count_author,
@@ -115,8 +115,7 @@ def add_comment(request, post_id):
 
 @login_required
 def follow_index(request):
-    posts_list = (Post.objects.select_related('author').
-                  prefetch_related('author__following').
+    posts_list = (Post.objects.select_related('author', 'group').
                   filter(author__following__user=request.user))
     page_obj = get_page_context(request, posts_list)
     context = {'page_obj': page_obj,
