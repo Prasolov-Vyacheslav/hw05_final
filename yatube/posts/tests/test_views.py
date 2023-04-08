@@ -218,7 +218,7 @@ class FollowTests(TestCase):
         self.assertEqual(following + 1, self.author.following.count())
         self.assertTrue(Follow.objects.filter(
             user=self.user, author=self.author).exists())
-        subscription = Follow.objects.post(user=self.user, author=self.author)
+        subscription = Follow.objects.first()
         self.assertEqual(subscription.author, self.author)
         self.assertEqual(subscription.user, self.user)
 
@@ -294,15 +294,11 @@ class PaginatorViewsTest(TestCase):
 
         Follow.objects.create(user=cls.user_folower_client, author=cls.author)
         cls.object_size = 13
-        post_objs = []
-        for object in range(cls.object_size):
-            post_obj = Post(
-                author=cls.author,
-                text=f"Тестовая пост {object}",
-                group=cls.group
-            )
-            post_objs.append(post_obj)
-        Post.objects.bulk_create(post_objs)
+        Post.objects.bulk_create(
+            Post(
+                text=f'text {num}', author=cls.author, group=cls.group
+            ) for num in range(cls.object_size)
+        )
 
     def setUp(self):
         self.authorized_client = Client()
