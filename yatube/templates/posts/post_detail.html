@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
-{% load thumbnail %}
-<link rel="stylesheet" href="yatube/static/css/style.css" type="text/css"/>
+{#{% load thumbnail %}#}
+
 {% block title %}
     Пост {{ post.text|slice:30 }}
 {% endblock %}
@@ -36,15 +36,12 @@
         </ul>
       </aside>
       <article class="card">
-        {% if view_name == 'posts:post_detail'%}
-        {% thumbnail post.image "900x450" padding=True as im %}
-        <img src="{{ im.url }}" width="{{ im.width }}" alt="rover" />
-        {% endthumbnail %}
-        {% else %}
-        {% thumbnail post.image "900x339" crop="top" upscale=True as im %}
-        <img src="{{ im.url }}" width="{{ im.width }}" height="{{ im.height }}" alt="rover" />
-        {% endthumbnail %}
-        {% endif %}
+
+        {#{% thumbnail item.image "900x400" crop="center" as im %}#}
+
+        {#<img src="{{ im.url }}" width="{{ im.width }}" height="{{ im.height }}">#}
+        {#{% endthumbnail %}#}
+  
         <p>{{ post.text|linebreaksbr }}</p>
 
         {% if user.is_authenticated %}

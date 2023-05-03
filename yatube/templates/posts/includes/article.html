@@ -1,12 +1,18 @@
 {% load thumbnail %}
-<link rel="stylesheet" href="yatube/static/css/style.css" type="text/css"/>
+{% load static %}
 <article>
   <a>Автор:{{ post.author.get_full_name }}</a><br>
   {% if not check_author %}<a href="{% url 'posts:profile' post.author.username %}">Профиль автора</a><br>{% endif %}
   <a>Дата публикации: {{ post.pub_date|date:"d E Y" }}</a>
-  {% thumbnail post.image "3024x1964" crop="center" upscale=True as im %}
-    <img class="card-img my-2" src="{{ im.url }}">
+
+  
+  {% thumbnail post.image "900x400" crop="center" upscale=True as im %}
+  <div class='bmw'>
+    <img src="{{ im.url }}" width="{{ im.width }}" height="{{ im.height }}">
+    {#<div class='bmw' style="background-image: url({{ im.url }}); height: {{ im.width }}; width: {{ im.height }}; background-size: cover; background-repeat: no-repeat;"></div>#}
+  </div>
   {% endthumbnail %}
+
   <p>{{ post.text|linebreaksbr }}</p>
   <a href="{% url 'posts:post_detail' post.id %}">подробная информация</a><br>
   {% if not check_group %}
